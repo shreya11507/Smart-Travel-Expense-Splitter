@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Travel Expense Splitter</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* 
+     * STYLE UPDATES:
+     * - Added currency selector styles
+     * - Added beneficiary control button styles
+     * - Added PDF download button styles
+     * - Maintained all existing budget/category styles
+     */
+    
+    /* Category color scheme - consistent across all UI elements */
+    :root {
+      --color-food: #4CAF50;
+      --color-hotel: #9C27B0;
+      --color-transport: #2196F3;
+      --color-fun: #FF9800;
+      --color-misc: #9E9E9E;
+    }
+    
+    /* Currency selector styles */
+    .currency-selector {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      background: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .currency-selector label {
+      font-size: 0.85em;
+      color: #666;
+    }
+    
+    .currency-selector select {
+      padding: 5px 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 0.9em;
+      cursor: pointer;
+    }
+    
+    /* Beneficiary controls */
+    .beneficiary-controls {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    
+    /* 
+     * ISSUE 2 FIX: Updated button color to #9F86C0 as requested
+     * Also updated hover state to complement the new color
+     */
+    .beneficiary-controls button {
+      padding: 6px 12px;
+      font-size: 0.85em;
+      background: #9F86C0;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .beneficiary-controls button:hover {
+      background: #8B74A9;
+    }
+    
+    .split-info {
+      background: #e3f2fd;
+      padding: 8px 12px;
+      border-radius: 5px;
+      font-size: 0.9em;
+      color: #1565c0;
+      display: inline-block;
+    }
+    
+    /* PDF download button */
+    .pdf-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 500;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-top: 15px;
+    }
+    
+    .pdf-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Budget section styles */
+    .budget-section { margin-top: 20px; }
+    
+    .budget-overview {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    
+    .budget-overview h3 { margin: 0 0 15px 0; font-size: 1.1em; }
+    
+    .budget-stats {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    
+    .budget-stat {
+      text-align: center;
+      flex: 1;
+      min-width: 80px;
+    }
+    
+    .budget-stat .value {
+      font-size: 1.5em;
+      font-weight: bold;
+    }
+    
+    .budget-stat .label {
+      font-size: 0.85em;
+      opacity: 0.9;
+    }
+    
+    /* Progress bar styles */
+    .progress-container {
+      background: rgba(255,255,255,0.3);
+      border-radius: 10px;
+      height: 20px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      border-radius: 10px;
+      transition: width 0.5s ease;
+    }
+    
+    .progress-bar.safe { background: #4CAF50; }
+    .progress-bar.warning { background: #FF9800; }
+    .progress-bar.danger { background: #f44336; }
+    
+    /* Category budget cards */
+    .category-budgets {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+    
+    .category-budget-card {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 15px;
+      border-left: 4px solid;
+    }
+    
+    .category-budget-card.food { border-left-color: var(--color-food); }
+    .category-budget-card.hotel { border-left-color: var(--color-hotel); }
+    .category-budget-card.transport { border-left-color: var(--color-transport); }
+    .category-budget-card.fun { border-left-color: var(--color-fun); }
+    .category-budget-card.misc { border-left-color: var(--color-misc); }
+    
+    .category-budget-card h4 {
+      margin: 0 0 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .category-budget-card .amounts {
+      font-size: 0.9em;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .category-progress {
+      background: #e0e0e0;
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+    }
+    
+    .category-progress-bar {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.5s ease;
+    }
+    
+    .category-progress-bar.food { background: var(--color-food); }
+    .category-progress-bar.hotel { background: var(--color-hotel); }
+    .category-progress-bar.transport { background: var(--color-transport); }
+    .category-progress-bar.fun { background: var(--color-fun); }
+    .category-progress-bar.misc { background: var(--color-misc); }
+    
+    /* Warning styles */
+    .budget-warning {
+      background: #ffebee;
+      border: 1px solid #f44336;
+      color: #c62828;
+      padding: 12px 15px;
+      border-radius: 8px;
+      margin-top: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .budget-warning.category-warning {
+      background: #fff3e0;
+      border-color: #FF9800;
+      color: #e65100;
+    }
+    
+    .no-budget-msg {
+      color: #666;
+      font-style: italic;
+      padding: 10px 0;
+    }
+
+    /* Chart container for better sizing */
+    .chart-container {
+      max-width: 350px;
+      margin: 0 auto 30px auto;
+    }
+    
+    /* Currency-aware amount display */
+    .currency-amount {
+      /* JavaScript will update these dynamically */
+    }
+  </style>
+</head>
+<body>
+
+<!-- 
+  TASK 4: Currency Selector (UI-ONLY)
+  - Fixed position selector for instant currency switching
+  - Uses static conversion rates (no API calls)
+  - All amounts have class="currency-amount" for JS targeting
+-->
+<div class="currency-selector">
+  <label>💱 Currency:</label>
+  <select id="currencySelect">
+    <option value="INR" selected>₹ INR</option>
+    <option value="USD">$ USD</option>
+    <option value="EUR">€ EUR</option>
+  </select>
+</div>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <h1>🧳 Smart Travel Expense Splitter</h1>
+    <p class="subtitle">Fair, transparent expense sharing for real trips</p>
+  </header>
+
+  <!-- TRIP SETUP -->
+  <section class="card">
+    <h2>✈️ Trip Setup</h2>
+    <form method="POST" action="/create-trip">
+
+      <input name="trip_name" placeholder="Trip name" required>
+      <input name="participants" placeholder="Participants (comma separated)" required>
+
+      <div class="row">
+        <input type="date" name="start_date" required>
+        <input type="number" name="duration" placeholder="Days" required>
+      </div>
+
+      <!-- BUDGET INPUTS - Always visible during trip creation -->
+      <h3>💰 Set Your Budget (Optional)</h3>
+      <p style="color:#666; font-size:0.9em; margin-bottom:10px;">
+        Set budgets to track spending and get warnings when exceeded
+      </p>
+      
+      <input type="number" name="total_budget" placeholder="Total trip budget (₹)" min="0" step="100">
+
+      <p style="margin-top:15px; margin-bottom:5px; font-weight:500;">Category Budgets:</p>
+      <div class="row">
+        <input type="number" name="budget_food" placeholder="🍕 Food" min="0" step="100">
+        <input type="number" name="budget_hotel" placeholder="🏨 Hotel" min="0" step="100">
+      </div>
+
+      <div class="row">
+        <input type="number" name="budget_transport" placeholder="🚗 Transport" min="0" step="100">
+        <input type="number" name="budget_fun" placeholder="🎉 Fun" min="0" step="100">
+      </div>
+
+      <button>Create Trip</button>
+    </form>
+  </section>
+
+
+  {% if trip_id %}
+
+  <!-- 
+    TASK 3: Enhanced Add Expense Section
+    - Added Select All / Clear All buttons
+    - Added live split counter
+    - Payer auto-selection ensures payer is beneficiary
+  -->
+  
+  <!-- ADD EXPENSE - Moved BEFORE Budget per TASK 2 requirement -->
+  <section class="card">
+    <h2>💳 Add Expense</h2>
+    <form method="POST" action="/add-expense" id="expenseForm">
+
+      <select name="category" required>
+        {% for c in categories %}
+          <option value="{{c}}">{{c}}</option>
+        {% endfor %}
+      </select>
+
+      <select name="payer" id="payerSelect" required>
+        {% for p in participants %}
+          <option value="{{p.participant_id}}">{{p.name}}</option>
+        {% endfor %}
+      </select>
+
+      <div class="beneficiaries">
+        <p><strong>Who benefited?</strong></p>
+        
+        <!-- Beneficiary control buttons -->
+        <div class="beneficiary-controls">
+          <button type="button" id="selectAllBtn">✓ Select All</button>
+          <button type="button" id="clearAllBtn">✗ Clear All</button>
+          <span class="split-info" id="splitInfo">Split among {{ participants|length }} of {{ participants|length }} people</span>
+        </div>
+        
+        <div id="beneficiaryCheckboxes">
+          {% for p in participants %}
+            <label>
+              <input type="checkbox" name="beneficiaries" value="{{p.participant_id}}" 
+                     class="beneficiary-cb" data-participant-id="{{p.participant_id}}" checked>
+              {{p.name}}
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <input type="number" name="amount" placeholder="Amount paid" required>
+      <!-- Default expense date to trip start date to ensure date validation passes -->
+      <input type="date" name="expense_date" value="{{ trip_start_date or '' }}">
+      <textarea name="note" placeholder="Optional note"></textarea>
+
+      <button>Add Expense</button>
+    </form>
+  </section>
+
+  <!-- 
+    TASK 2: Budget Section Placement
+    Budget section is now AFTER "Add Expense" and BEFORE "Insights"
+    This matches the user flow: add expense → check budget → view insights
+  -->
+  
+  <!-- BUDGET TRACKING -->
+  <section class="card">
+    <h2>💰 Budget Tracking</h2>
+    
+    <!-- Embed budget and analytics data for JavaScript -->
+    <script id="budget-json" type="application/json">{{ budget | tojson | safe }}</script>
+    <script id="analytics-data" type="application/json">{{ analytics | tojson | safe }}</script>
+    
+    <div id="budget-content">
+      <!-- Budget UI is rendered by JavaScript using stored budget data -->
+    </div>
+  </section>
+
+  <!-- EXPENSE HISTORY -->
+  <section class="card">
+    <h2>📜 Expense History</h2>
+    {% for e in expenses %}
+      <div class="list-item">
+        <strong>{{e.category}}</strong> — <span class="currency-amount" data-amount="{{e.amount}}">₹{{e.amount}}</span>
+        <span>paid by {{ payer_name_map[e.payer_id] }}</span>
+      </div>
+    {% else %}
+      <p>No expenses yet.</p>
+    {% endfor %}
+  </section>
+
+  <!-- 
+    ISSUE 1 FIX EXPLANATION - SETTLEMENT SUMMARY:
+    
+    ROOT CAUSE: Settlement Summary was showing Share=0 for non-payers because:
+    1. calculate_balances() in splitter.py filters beneficiaries by date
+    2. If expense_date was before participant start_date, they weren't counted
+    3. When expense_date defaulted to today() but trip start_date was in future,
+       ALL beneficiaries failed the date check, resulting in 0 shares
+    
+    THE FIX: 
+    1. Expense date now defaults to trip_start_date (not today)
+    2. This ensures beneficiaries pass the _is_participant_active_on_date() check
+    3. Summary data comes directly from calculate_balances() output
+    
+    The data flow is:
+    - calculate_balances() returns {participant_id: {total_paid, total_share, net_balance}}
+    - app.py maps this to summary list with names
+    - Template displays summary as-is (no additional filtering)
+  -->
+  
+  <!-- SUMMARY -->
+  <section class="card">
+    <h2>⚖️ Settlement Summary</h2>
+    {% for person in summary %}
+      <div class="summary-row">
+        <strong>{{person.name}}</strong>
+        <span>Paid: <span class="currency-amount" data-amount="{{person.paid}}">₹{{person.paid}}</span></span>
+        <span>Share: <span class="currency-amount" data-amount="{{person.share}}">₹{{person.share}}</span></span>
+        <span>
+          {% if person.net > 0 %}
+            Gets back <span class="currency-amount" data-amount="{{person.net}}">₹{{person.net}}</span>
+          {% elif person.net < 0 %}
+            Owes <span class="currency-amount" data-amount="{{-person.net}}">₹{{-person.net}}</span>
+          {% else %}
+            Settled
+          {% endif %}
+        </span>
+      </div>
+    {% else %}
+      <p>Add expenses to see settlement summary.</p>
+    {% endfor %}
+  </section>
+
+  <!-- 
+    ISSUE 1 FIX EXPLANATION - WHO PAYS WHOM:
+    
+    ROOT CAUSE: Was showing "No settlements needed" because:
+    1. optimize_settlements() takes balances from calculate_balances()
+    2. If all total_share values were 0 (due to date filtering issue),
+       all net_balance values were positive (only payers had non-zero)
+    3. With no debtors (negative net_balance), no settlements generated
+    
+    THE FIX:
+    1. Same fix as Settlement Summary - expense dates now valid
+    2. With correct shares, non-payers have negative net_balance (they owe)
+    3. optimize_settlements() now correctly pairs debtors with creditors
+    
+    The settlements list comes directly from optimize_settlements() output.
+    Template displays it without any additional filtering.
+  -->
+  
+  <!-- WHO PAYS WHOM -->
+  <section class="card">
+    <h2>🔁 Who Pays Whom</h2>
+    {% for s in settlements %}
+      <div class="settlement">
+        👉 <strong>{{s.from}}</strong> pays <strong>{{s.to}}</strong> <span class="currency-amount" data-amount="{{s.amount}}">₹{{s.amount}}</span>
+      </div>
+    {% else %}
+      <p>No settlements needed 🎉</p>
+    {% endfor %}
+  </section>
+
+  <!-- INSIGHTS with color-coded charts -->
+  <section class="card">
+    <h2>📊 Insights</h2>
+
+    <div class="chart-container">
+      <canvas id="categoryChart"></canvas>
+    </div>
+    <div class="chart-container" style="max-width:500px;">
+      <canvas id="dailyChart"></canvas>
+    </div>
+  </section>
+
+  <!-- TRANSPARENCY -->
+  <section class="card">
+    <h2>🔍 Expense Breakdown</h2>
+    {% for person, data in explanations.items() %}
+      <h3>{{person}}</h3>
+      {% for d in data.details %}
+        <p>{{d.category}} <span class="currency-amount" data-amount="{{d.amount}}">₹{{d.amount}}</span> → share <span class="currency-amount" data-amount="{{d.share}}">₹{{d.share}}</span></p>
+      {% endfor %}
+      <p><strong>Net:</strong> <span class="currency-amount" data-amount="{{data.net}}">₹{{data.net}}</span></p>
+    {% else %}
+      <p>Add expenses to see detailed breakdown.</p>
+    {% endfor %}
+  </section>
+
+  <!-- 
+    TASK 1: PDF Export Button
+    Replaced CSV with PDF export
+    PDF generated on-demand, not stored in Firebase
+  -->
+  <section class="card">
+    <h2>📄 Export Report</h2>
+    <p>Download a professional PDF report with all trip details, expenses, and settlements.</p>
+    <a href="/export-pdf" class="pdf-btn">
+      📥 Download PDF Report
+    </a>
+  </section>
+
+  {% endif %}
+</div>
+
+<!-- 
+  JAVASCRIPT SECTION
+  Contains all client-side logic for:
+  - Currency conversion (TASK 4)
+  - Beneficiary controls (TASK 3)
+  - Budget rendering
+  - Chart rendering
+-->
+<script>
+(function() {
+  // ===========================================
+  // TASK 4: Currency Conversion (UI-ONLY)
+  // Static rates - no API calls
+  // ===========================================
+  const currencyConfig = {
+    INR: { symbol: '₹', rate: 1 },
+    USD: { symbol: '$', rate: 0.012 },
+    EUR: { symbol: '€', rate: 0.011 }
+  };
+  
+  let currentCurrency = 'INR';
+  
+  function formatCurrency(amountINR, currency) {
+    const config = currencyConfig[currency];
+    const converted = amountINR * config.rate;
+    // Round to 2 decimal places
+    const formatted = currency === 'INR' 
+      ? converted.toFixed(0) 
+      : converted.toFixed(2);
+    return `${config.symbol}${formatted}`;
+  }
+  
+  function updateAllCurrencyDisplays() {
+    document.querySelectorAll('.currency-amount').forEach(el => {
+      const amountINR = parseFloat(el.dataset.amount);
+      if (!isNaN(amountINR)) {
+        el.textContent = formatCurrency(amountINR, currentCurrency);
+      }
+    });
+    
+    // Also update budget section if it exists
+    if (typeof renderBudget === 'function') {
+      renderBudget();
+    }
+  }
+  
+  // Currency selector event listener
+  const currencySelect = document.getElementById('currencySelect');
+  if (currencySelect) {
+    currencySelect.addEventListener('change', (e) => {
+      currentCurrency = e.target.value;
+      updateAllCurrencyDisplays();
+    });
+  }
+  
+  // ===========================================
+  // TASK 3: Beneficiary Controls
+  // ===========================================
+  const totalParticipants = document.querySelectorAll('.beneficiary-cb').length;
+  
+  function updateSplitInfo() {
+    const checked = document.querySelectorAll('.beneficiary-cb:checked').length;
+    const splitInfo = document.getElementById('splitInfo');
+    if (splitInfo) {
+      splitInfo.textContent = `Split among ${checked} of ${totalParticipants} people`;
+      // Visual feedback
+      if (checked === 0) {
+        splitInfo.style.background = '#ffebee';
+        splitInfo.style.color = '#c62828';
+      } else {
+        splitInfo.style.background = '#e3f2fd';
+        splitInfo.style.color = '#1565c0';
+      }
+    }
+  }
+  
+  // Select All button
+  const selectAllBtn = document.getElementById('selectAllBtn');
+  if (selectAllBtn) {
+    selectAllBtn.addEventListener('click', () => {
+      document.querySelectorAll('.beneficiary-cb').forEach(cb => cb.checked = true);
+      updateSplitInfo();
+    });
+  }
+  
+  // Clear All button
+  const clearAllBtn = document.getElementById('clearAllBtn');
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', () => {
+      document.querySelectorAll('.beneficiary-cb').forEach(cb => cb.checked = false);
+      updateSplitInfo();
+    });
+  }
+  
+  // Auto-select payer as beneficiary when payer changes
+  const payerSelect = document.getElementById('payerSelect');
+  if (payerSelect) {
+    payerSelect.addEventListener('change', () => {
+      const payerId = payerSelect.value;
+      const payerCheckbox = document.querySelector(`.beneficiary-cb[data-participant-id="${payerId}"]`);
+      if (payerCheckbox) {
+        payerCheckbox.checked = true;
+        updateSplitInfo();
+      }
+    });
+  }
+  
+  // Update split info when any checkbox changes
+  document.querySelectorAll('.beneficiary-cb').forEach(cb => {
+    cb.addEventListener('change', updateSplitInfo);
+  });
+  
+  // ===========================================
+  // Budget Rendering with Currency Support
+  // ===========================================
+  const budgetJsonEl = document.getElementById('budget-json');
+  const analyticsDataEl = document.getElementById('analytics-data');
+  
+  function renderBudget() {
+    if (!budgetJsonEl || !analyticsDataEl) return;
+    
+    const budget = JSON.parse(budgetJsonEl.textContent);
+    const analytics = JSON.parse(analyticsDataEl.textContent);
+    const categorySpending = analytics.category_breakdown || {};
+    
+    const container = document.getElementById('budget-content');
+    if (!container) return;
+    
+    const totalBudget = budget.total || 0;
+    const categoryBudgets = budget.categories || {};
+    const totalSpent = Object.values(categorySpending).reduce((a, b) => a + b, 0);
+    
+    const categoryConfig = {
+      food: { icon: '🍕', color: '#4CAF50', name: 'Food' },
+      hotel: { icon: '🏨', color: '#9C27B0', name: 'Hotel' },
+      transport: { icon: '🚗', color: '#2196F3', name: 'Transport' },
+      fun: { icon: '🎉', color: '#FF9800', name: 'Fun' },
+      misc: { icon: '📦', color: '#9E9E9E', name: 'Misc' }
+    };
+    
+    const hasTotalBudget = totalBudget > 0;
+    const hasCategoryBudgets = Object.values(categoryBudgets).some(v => v > 0);
+    
+    if (!hasTotalBudget && !hasCategoryBudgets) {
+      container.innerHTML = `
+        <p class="no-budget-msg">
+          No budget was set for this trip. Create a new trip with budget values to enable tracking.
+        </p>
+        <p style="color:#666; font-size:0.9em;">
+          Total spent so far: <strong>${formatCurrency(totalSpent, currentCurrency)}</strong>
+        </p>
+      `;
+      return;
+    }
+    
+    let html = '';
+    let warnings = [];
+    
+    if (hasTotalBudget) {
+      const remaining = totalBudget - totalSpent;
+      const percentage = Math.min((totalSpent / totalBudget) * 100, 100);
+      const progressClass = percentage >= 100 ? 'danger' : percentage >= 80 ? 'warning' : 'safe';
+      
+      if (remaining < 0) {
+        warnings.push(`⚠️ Total budget exceeded by ${formatCurrency(Math.abs(remaining), currentCurrency)}!`);
+      }
+      
+      html += `
+        <div class="budget-overview">
+          <h3>📊 Overall Budget</h3>
+          <div class="budget-stats">
+            <div class="budget-stat">
+              <div class="value">${formatCurrency(totalBudget, currentCurrency)}</div>
+              <div class="label">Budget</div>
+            </div>
+            <div class="budget-stat">
+              <div class="value">${formatCurrency(totalSpent, currentCurrency)}</div>
+              <div class="label">Spent</div>
+            </div>
+            <div class="budget-stat">
+              <div class="value" style="color: ${remaining >= 0 ? '#c8e6c9' : '#ffcdd2'}">
+                ${remaining >= 0 ? formatCurrency(remaining, currentCurrency) : '-' + formatCurrency(Math.abs(remaining), currentCurrency)}
+              </div>
+              <div class="label">${remaining >= 0 ? 'Remaining' : 'Over Budget'}</div>
+            </div>
+          </div>
+          <div class="progress-container">
+            <div class="progress-bar ${progressClass}" style="width: ${percentage}%"></div>
+          </div>
+        </div>
+      `;
+    }
+    
+    if (hasCategoryBudgets) {
+      html += '<h3 style="margin-top:20px;">📂 Category Budgets</h3>';
+      html += '<div class="category-budgets">';
+      
+      for (const [cat, budgetAmt] of Object.entries(categoryBudgets)) {
+        if (budgetAmt <= 0) continue;
+        
+        const config = categoryConfig[cat] || { icon: '📦', color: '#9E9E9E', name: cat };
+        const spent = categorySpending[cat] || 0;
+        const catRemaining = budgetAmt - spent;
+        const catPercentage = Math.min((spent / budgetAmt) * 100, 100);
+        
+        if (catRemaining < 0) {
+          warnings.push(`${config.icon} ${config.name} budget exceeded by ${formatCurrency(Math.abs(catRemaining), currentCurrency)}`);
+        }
+        
+        html += `
+          <div class="category-budget-card ${cat}">
+            <h4>${config.icon} ${config.name}</h4>
+            <div class="amounts">
+              Spent ${formatCurrency(spent, currentCurrency)} of ${formatCurrency(budgetAmt, currentCurrency)}
+              ${catRemaining >= 0 
+                ? `<span style="color:#4CAF50;"> (${formatCurrency(catRemaining, currentCurrency)} left)</span>`
+                : `<span style="color:#f44336;"> (${formatCurrency(Math.abs(catRemaining), currentCurrency)} over)</span>`
+              }
+            </div>
+            <div class="category-progress">
+              <div class="category-progress-bar ${cat}" style="width: ${catPercentage}%"></div>
+            </div>
+          </div>
+        `;
+      }
+      
+      html += '</div>';
+    }
+    
+    if (warnings.length > 0) {
+      html += '<div style="margin-top:20px;">';
+      for (const warn of warnings) {
+        const isTotal = warn.includes('Total');
+        html += `
+          <div class="budget-warning ${isTotal ? '' : 'category-warning'}">
+            ${warn}
+          </div>
+        `;
+      }
+      html += '</div>';
+    }
+    
+    container.innerHTML = html;
+  }
+  
+  // Make renderBudget globally accessible for currency updates
+  window.renderBudget = renderBudget;
+  
+  // Initial render
+  renderBudget();
+  
+  // ===========================================
+  // Chart Rendering with Category Colors
+  // ===========================================
+  if (analyticsDataEl) {
+    const analyticsData = JSON.parse(analyticsDataEl.textContent);
+    const categoryData = analyticsData.category_breakdown || {};
+    const dailyData = analyticsData.daily_spending || {};
+    
+    const categoryColors = {
+      food: '#4CAF50',
+      hotel: '#9C27B0',
+      transport: '#2196F3',
+      fun: '#FF9800',
+      misc: '#9E9E9E'
+    };
+    
+    const labels = Object.keys(categoryData);
+    const colors = labels.map(cat => categoryColors[cat] || '#9E9E9E');
+    
+    const categoryChartEl = document.getElementById('categoryChart');
+    if (categoryChartEl && labels.length > 0) {
+      new Chart(categoryChartEl, {
+        type: "pie",
+        data: {
+          labels: labels,
+          datasets: [{
+            data: Object.values(categoryData),
+            backgroundColor: colors,
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+    }
+    
+    const dailyChartEl = document.getElementById('dailyChart');
+    if (dailyChartEl && Object.keys(dailyData).length > 0) {
+      new Chart(dailyChartEl, {
+        type: "line",
+        data: {
+          labels: Object.keys(dailyData),
+          datasets: [{
+            label: "Daily Spend",
+            data: Object.values(dailyData),
+            fill: true,
+            backgroundColor: 'rgba(102, 126, 234, 0.2)',
+            borderColor: '#667eea',
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+  }
+})();
+</script>
+
+</body>
+</html>
